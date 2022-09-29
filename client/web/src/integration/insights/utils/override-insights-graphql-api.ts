@@ -74,7 +74,6 @@ export function overrideInsightsGraphQLApi(props: OverrideGraphQLExtensionsProps
                 nodes: [{ id: '001', isFrozen: false }],
             },
         }),
-        IsCodeInsightsLicensed: () => ({ __typename: 'Query', enterpriseLicenseHasFeature: true }),
         InsightsDashboards: () => ({
             currentUser: {
                 __typename: 'User',
