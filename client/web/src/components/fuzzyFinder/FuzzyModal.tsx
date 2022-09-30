@@ -239,12 +239,12 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
         >
             <div className={styles.content}>
                 <div className={styles.header}>
-                    <H3 className="mb-0">All</H3>
-                    <H3 className="mb-0">Repos</H3>
-                    <H3 className="mb-0">Files</H3>
-                    <H3 className="mb-0">Symbols</H3>
-                    <H3 className="mb-0">Lines</H3>
-                    <H3 className="mb-0">Actions</H3>
+                    {props.tabs
+                        .all()
+                        .filter(tab => tab.isVisible())
+                        .map(tab => (
+                            <H3 className="mb-0">{tab.title}</H3>
+                        ))}
                     <Button variant="icon" onClick={() => props.onClose()} aria-label="Close">
                         <Icon className={styles.closeIcon} aria-hidden={true} svgPath={mdiClose} />
                     </Button>

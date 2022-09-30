@@ -8,19 +8,22 @@ enum TabState {
     Active,
 }
 
-interface Tab {
-    title: string
-    state: TabState
+class Tab {
+    public constructor(public readonly title: string, public readonly state: TabState) {}
+    public isVisible(): boolean {
+        return this.state !== TabState.Hidden
+    }
 }
+
 const defaultKinds: Tabs = {
-    all: { title: 'All', state: TabState.Enabled },
-    actions: { title: 'Actions', state: TabState.Enabled },
-    repos: { title: 'Repos', state: TabState.Enabled },
-    files: { title: 'Files', state: TabState.Enabled },
-    symbols: { title: 'Symbols', state: TabState.Enabled },
-    lines: { title: 'Lines', state: TabState.Enabled },
+    all: new Tab('All', TabState.Enabled),
+    actions: new Tab('Actions', TabState.Enabled),
+    repos: new Tab('Repos', TabState.Enabled),
+    files: new Tab('Files', TabState.Enabled),
+    symbols: new Tab('Symbols', TabState.Enabled),
+    lines: new Tab('Lines', TabState.Enabled),
 }
-const hiddenKind = { title: 'Hidden', state: TabState.Hidden }
+const hiddenKind: Tab = new Tab('Hidden', TabState.Hidden)
 
 export interface Tabs {
     all: Tab
@@ -32,7 +35,7 @@ export interface Tabs {
 }
 export class FuzzyTabs {
     public constructor(readonly tabs: Tabs) {}
-    private all(): Tab[] {
+    public all(): Tab[] {
         return [this.tabs.all, this.tabs.actions, this.tabs.repos, this.tabs.files, this.tabs.lines]
     }
     public isAllHidden(): boolean {

@@ -36,7 +36,10 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
     const [isVisible, setIsVisible] = useState(false)
     const [retainFuzzyFinderCache, setRetainFuzzyFinderCache] = useState(true)
     const fuzzyFinderShortcut = useKeyboardShortcut('fuzzyFinder')
-    const tabs = useMemo(() => useFuzzyTabs(settingsCascade, isRepositoryRelatedPage), [settingsCascade])
+    const tabs = useMemo(() => useFuzzyTabs(settingsCascade, isRepositoryRelatedPage), [
+        settingsCascade,
+        isRepositoryRelatedPage,
+    ])
 
     useEffect(() => {
         if (isVisible) {
