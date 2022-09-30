@@ -285,7 +285,7 @@ export const Layout: React.FunctionComponent<React.PropsWithChildren<LayoutProps
             {(isSearchNotebookListPage || (isSearchRelatedPage && !isSearchHomepage)) && (
                 <NotepadContainer onCreateNotebook={props.onCreateNotebookFromNotepad} />
             )}
-            {isRepositoryRelatedPage && fuzzyFinder && (
+            {fuzzyFinder && (
                 <FuzzyFinderContainer
                     isRepositoryRelatedPage={isRepositoryRelatedPage}
                     settingsCascade={props.settingsCascade}

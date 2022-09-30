@@ -1,5 +1,5 @@
-import { isErrorLike } from '@sourcegraph/common'
 import { Settings, SettingsCascadeOrError } from '@sourcegraph/shared/src/settings/settings'
+import { getExperimentalFeatures } from '../../util/get-experimental-features'
 
 enum TabState {
     Hidden,
@@ -44,15 +44,10 @@ export function useFuzzyTabs(
     settingsCascade: SettingsCascadeOrError<Settings>,
     isRepositoryRelatedPage: boolean
 ): FuzzyTabs {
-    const actions =
-        (settingsCascade !== null &&
-            !isErrorLike(settingsCascade.final) &&
-            settingsCascade.final !== null &&
-            settingsCascade.final?.experimentalFeatures?.fuzzyFinderActions) ??
-        false
+    let { fuzzyFinderActions } = getExperimentalFeatures(settingsCascade.final) ?? false
     return new FuzzyTabs({
         all: hiddenKind,
-        actions: actions ? defaultKinds.actions : hiddenKind,
+        actions: fuzzyFinderActions ? defaultKinds.actions : hiddenKind,
         repos: hiddenKind,
         files: isRepositoryRelatedPage ? defaultKinds.files : hiddenKind,
         symbols: hiddenKind,
