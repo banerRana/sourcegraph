@@ -212,6 +212,13 @@
             "pointer": true
           }
         },
+        "fuzzyFinderActions": {
+          "description": "Enables the 'Actions' tab of the fuzzy finder",
+          "type": "boolean",
+          "!go": {
+            "pointer": true
+          }
+        },
         "fuzzyFinderCaseInsensitiveFileCountThreshold": {
           "description": "The maximum number of files a repo can have to use case-insensitive fuzzy finding",
           "type": "number",

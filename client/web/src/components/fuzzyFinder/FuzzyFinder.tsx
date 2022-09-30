@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Dispatch, SetStateAction } from 'react'
+import React, { useState, useEffect, Dispatch, SetStateAction, useMemo } from 'react'
 
 import { ApolloError, useQuery } from '@apollo/client'
 import * as H from 'history'
@@ -14,10 +14,14 @@ import { FileNamesResult, FileNamesVariables } from '../../graphql-operations'
 import { parseBrowserRepoURL } from '../../util/url'
 
 import { FuzzyModal } from './FuzzyModal'
+import { SettingsCascadeProps } from '@sourcegraph/shared/src/settings/settings'
+import { useFuzzyTabs } from './FuzzyTabs'
 
 const DEFAULT_MAX_RESULTS = 100
 
-interface FuzzyFinderContainerProps extends TelemetryProps, Pick<FuzzyFinderProps, 'location'> {}
+interface FuzzyFinderContainerProps extends TelemetryProps, Pick<FuzzyFinderProps, 'location'>, SettingsCascadeProps {
+    isRepositoryRelatedPage: boolean
+}
 
 /**
  * This components registers a global keyboard shortcut to render the fuzzy
@@ -26,16 +30,23 @@ interface FuzzyFinderContainerProps extends TelemetryProps, Pick<FuzzyFinderProp
 export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerProps> = ({
     location,
     telemetryService,
+    settingsCascade,
+    isRepositoryRelatedPage,
 }) => {
     const [isVisible, setIsVisible] = useState(false)
     const [retainFuzzyFinderCache, setRetainFuzzyFinderCache] = useState(true)
     const fuzzyFinderShortcut = useKeyboardShortcut('fuzzyFinder')
+    const tabs = useMemo(() => useFuzzyTabs(settingsCascade, isRepositoryRelatedPage), [settingsCascade])
 
     useEffect(() => {
         if (isVisible) {
             telemetryService.log('FuzzyFinderViewed', { action: 'shortcut open' })
         }
     }, [telemetryService, isVisible])
+
+    if (tabs.isAllHidden()) {
+        return null
+    }
 
     return (
         <>

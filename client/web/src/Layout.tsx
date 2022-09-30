@@ -286,7 +286,12 @@ export const Layout: React.FunctionComponent<React.PropsWithChildren<LayoutProps
                 <NotepadContainer onCreateNotebook={props.onCreateNotebookFromNotepad} />
             )}
             {isRepositoryRelatedPage && fuzzyFinder && (
-                <FuzzyFinderContainer telemetryService={props.telemetryService} location={props.location} />
+                <FuzzyFinderContainer
+                    isRepositoryRelatedPage={isRepositoryRelatedPage}
+                    settingsCascade={props.settingsCascade}
+                    telemetryService={props.telemetryService}
+                    location={props.location}
+                />
             )}
         </div>
     )

@@ -26,6 +26,7 @@ export interface Settings {
         showSearchContextManagement?: boolean
         fuzzyFinder?: boolean
         fuzzyFinderCaseInsensitiveFileCountThreshold?: number
+        fuzzyFinderActions?: boolean
         clientSearchResultRanking?: string
         coolCodeIntel?: boolean
         codeIntelRepositoryBadge?: {

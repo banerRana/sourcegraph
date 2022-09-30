@@ -17,6 +17,7 @@ import { Indexing, FuzzyFSM } from './FuzzyFinder'
 import { HighlightedLink } from './HighlightedLink'
 
 import styles from './FuzzyModal.module.scss'
+import { FuzzyTabs } from './FuzzyTabs'
 
 // The default value of 80k filenames is picked from the following observations:
 // - case-insensitive search is slow but works in the torvalds/linux repo (72k files)
@@ -237,7 +238,12 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
         >
             <div className={styles.content}>
                 <div className={styles.header}>
-                    <H3 className="mb-0">Find file</H3>
+                    <H3 className="mb-0">All</H3>
+                    <H3 className="mb-0">Repos</H3>
+                    <H3 className="mb-0">Files</H3>
+                    <H3 className="mb-0">Symbols</H3>
+                    <H3 className="mb-0">Lines</H3>
+                    <H3 className="mb-0">Actions</H3>
                     <Button variant="icon" onClick={() => props.onClose()} aria-label="Close">
                         <Icon className={styles.closeIcon} aria-hidden={true} svgPath={mdiClose} />
                     </Button>

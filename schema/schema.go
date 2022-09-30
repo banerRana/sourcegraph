@@ -1861,6 +1861,8 @@ type SettingsExperimentalFeatures struct {
 	EnableSmartQuery *bool `json:"enableSmartQuery,omitempty"`
 	// FuzzyFinder description: Enables fuzzy finder with the keyboard shortcut `Cmd+K` on macOS and `Ctrl+K` on Linux/Windows.
 	FuzzyFinder *bool `json:"fuzzyFinder,omitempty"`
+	// FuzzyFinderActions description: Enables the 'Actions' tab of the fuzzy finder
+	FuzzyFinderActions *bool `json:"fuzzyFinderActions,omitempty"`
 	// FuzzyFinderCaseInsensitiveFileCountThreshold description: The maximum number of files a repo can have to use case-insensitive fuzzy finding
 	FuzzyFinderCaseInsensitiveFileCountThreshold *float64 `json:"fuzzyFinderCaseInsensitiveFileCountThreshold,omitempty"`
 	// GoCodeCheckerTemplates description: Shows a panel with code insights templates for go code checker results.
