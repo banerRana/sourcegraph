@@ -13,7 +13,7 @@ import { FuzzySearch, SearchIndexing } from '../../fuzzyFinder/FuzzySearch'
 import { FileNamesResult, FileNamesVariables } from '../../graphql-operations'
 import { parseBrowserRepoURL } from '../../util/url'
 
-import { FuzzyModal } from './FuzzyModal'
+import { FuzzyModal, FuzzyModalProps } from './FuzzyModal'
 import { SettingsCascadeProps } from '@sourcegraph/shared/src/settings/settings'
 import { useFuzzyTabs } from './FuzzyTabs'
 
@@ -66,6 +66,7 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
             ))}
             {retainFuzzyFinderCache && (
                 <FuzzyFinder
+                    tabs={tabs}
                     setIsVisible={bool => setIsVisible(bool)}
                     isVisible={isVisible}
                     location={location}
@@ -76,7 +77,7 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
     )
 }
 
-interface FuzzyFinderProps {
+interface FuzzyFinderProps extends Pick<FuzzyModalProps, 'tabs'> {
     setIsVisible: Dispatch<SetStateAction<boolean>>
 
     isVisible: boolean
@@ -101,6 +102,7 @@ const FuzzyFinder: React.FunctionComponent<React.PropsWithChildren<FuzzyFinderPr
     setCacheRetention,
     setIsVisible,
     isVisible,
+    tabs,
 }) => {
     // The state machine of the fuzzy finder. See `FuzzyFSM` for more details
     // about the state transititions.
@@ -127,6 +129,7 @@ const FuzzyFinder: React.FunctionComponent<React.PropsWithChildren<FuzzyFinderPr
 
     return (
         <FuzzyModal
+            tabs={tabs}
             repoName={repoName}
             commitID={commitID}
             initialMaxResults={DEFAULT_MAX_RESULTS}

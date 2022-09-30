@@ -1,10 +1,5 @@
 import { isErrorLike } from '@sourcegraph/common'
-import {
-    ConfiguredSubjectOrError,
-    Settings,
-    SettingsCascade,
-    SettingsCascadeOrError,
-} from '@sourcegraph/shared/src/settings/settings'
+import { Settings, SettingsCascadeOrError } from '@sourcegraph/shared/src/settings/settings'
 
 enum TabState {
     Hidden,

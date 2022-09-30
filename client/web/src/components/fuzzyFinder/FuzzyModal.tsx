@@ -45,6 +45,7 @@ export interface FuzzyModalProps {
     onClose: () => void
     fsm: FuzzyFSM
     setFsm: (fsm: FuzzyFSM) => void
+    tabs: FuzzyTabs
 }
 
 /**
