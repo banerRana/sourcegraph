@@ -15,37 +15,31 @@ import { parseBrowserRepoURL } from '../../util/url'
 
 import { FuzzyModal, FuzzyModalProps } from './FuzzyModal'
 import { SettingsCascadeProps } from '@sourcegraph/shared/src/settings/settings'
-import { useFuzzyTabs } from './FuzzyTabs'
+import { FuzzyTabsProps, useFuzzyTabs } from './FuzzyTabs'
 
 const DEFAULT_MAX_RESULTS = 100
 
-interface FuzzyFinderContainerProps extends TelemetryProps, Pick<FuzzyFinderProps, 'location'>, SettingsCascadeProps {
-    isRepositoryRelatedPage: boolean
-}
+interface FuzzyFinderContainerProps
+    extends TelemetryProps,
+        Pick<FuzzyFinderProps, 'location'>,
+        SettingsCascadeProps,
+        FuzzyTabsProps {}
 
 /**
  * This components registers a global keyboard shortcut to render the fuzzy
  * finder and renders the fuzzy finder.
  */
-export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerProps> = ({
-    location,
-    telemetryService,
-    settingsCascade,
-    isRepositoryRelatedPage,
-}) => {
+export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerProps> = props => {
     const [isVisible, setIsVisible] = useState(false)
     const [retainFuzzyFinderCache, setRetainFuzzyFinderCache] = useState(true)
     const fuzzyFinderShortcut = useKeyboardShortcut('fuzzyFinder')
-    const tabs = useMemo(() => useFuzzyTabs(settingsCascade, isRepositoryRelatedPage), [
-        settingsCascade,
-        isRepositoryRelatedPage,
-    ])
+    const tabs = useMemo(() => useFuzzyTabs(props), [props, props.isRepositoryRelatedPage])
 
     useEffect(() => {
         if (isVisible) {
-            telemetryService.log('FuzzyFinderViewed', { action: 'shortcut open' })
+            props.telemetryService.log('FuzzyFinderViewed', { action: 'shortcut open' })
         }
-    }, [telemetryService, isVisible])
+    }, [props.telemetryService, isVisible])
 
     if (tabs.isAllHidden()) {
         return null
@@ -72,7 +66,7 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
                     tabs={tabs}
                     setIsVisible={bool => setIsVisible(bool)}
                     isVisible={isVisible}
-                    location={location}
+                    location={props.location}
                     setCacheRetention={bool => setRetainFuzzyFinderCache(bool)}
                 />
             )}

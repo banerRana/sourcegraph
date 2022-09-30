@@ -103,10 +103,10 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
             const repoUrl = parseBrowserRepoURL(location.pathname + location.search + location.hash)
             const indexedFileCount = indexing ? indexing.indexedFileCount : ''
             const cacheKey = `${query}-${maxResults}${indexedFileCount}-${repoUrl.revision || ''}`
-            let fuzzyResult = lastFuzzySearchResult.get(cacheKey)
-            if (!fuzzyResult) {
+            let filesResult = lastFuzzySearchResult.get(cacheKey)
+            if (!filesResult) {
                 const start = window.performance.now()
-                fuzzyResult = search.search({
+                filesResult = search.search({
                     query,
                     maxResults,
                     createUrl: filename =>
@@ -118,16 +118,16 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
                         }),
                     onClick: () => props.onClose(),
                 })
-                fuzzyResult.elapsedMilliseconds = window.performance.now() - start
+                filesResult.elapsedMilliseconds = window.performance.now() - start
                 lastFuzzySearchResult.clear() // Only cache the last query.
-                lastFuzzySearchResult.set(cacheKey, fuzzyResult)
+                lastFuzzySearchResult.set(cacheKey, filesResult)
             }
-            const links = fuzzyResult.links
+            const links = filesResult.links
             if (links.length === 0) {
                 setFuzzyResultElement(<Text>No files matching '{query}'</Text>)
                 setResultsCount(0)
                 setTotalFileCount(search.totalFileCount)
-                return setIsComplete(fuzzyResult.isComplete)
+                return setIsComplete(filesResult.isComplete)
             }
 
             const linksToRender = links.slice(0, maxResults)
@@ -154,7 +154,7 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
             setFuzzyResultElement(element)
             setResultsCount(linksToRender.length)
             setTotalFileCount(search.totalFileCount)
-            return setIsComplete(fuzzyResult.isComplete)
+            return setIsComplete(filesResult.isComplete)
         }
 
         if (props.isLoading) {
@@ -231,12 +231,7 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
     }
 
     return (
-        <Modal
-            position="center"
-            className={styles.modal}
-            onDismiss={() => props.onClose()}
-            aria-label="Fuzzy finder: Find file"
-        >
+        <Modal position="center" className={styles.modal} onDismiss={() => props.onClose()} aria-label="Fuzzy finder">
             <div className={styles.content}>
                 <div className={styles.header}>
                     {props.tabs

@@ -1,5 +1,6 @@
 import { Settings, SettingsCascadeOrError } from '@sourcegraph/shared/src/settings/settings'
 import { getExperimentalFeatures } from '../../util/get-experimental-features'
+import { allFuzzyActions, FuzzyAction, FuzzyActionProps } from './FuzzyAction'
 
 enum TabState {
     Hidden,
@@ -34,7 +35,7 @@ export interface Tabs {
     lines: Tab
 }
 export class FuzzyTabs {
-    public constructor(readonly tabs: Tabs) {}
+    public constructor(public readonly tabs: Tabs, public readonly actions: FuzzyAction[]) {}
     public all(): Tab[] {
         return [this.tabs.all, this.tabs.actions, this.tabs.repos, this.tabs.files, this.tabs.lines]
     }
@@ -43,17 +44,22 @@ export class FuzzyTabs {
     }
 }
 
-export function useFuzzyTabs(
-    settingsCascade: SettingsCascadeOrError<Settings>,
+export interface FuzzyTabsProps extends FuzzyActionProps {
+    settingsCascade: SettingsCascadeOrError<Settings>
     isRepositoryRelatedPage: boolean
-): FuzzyTabs {
-    let { fuzzyFinderActions } = getExperimentalFeatures(settingsCascade.final) ?? false
-    return new FuzzyTabs({
-        all: hiddenKind,
-        actions: fuzzyFinderActions ? defaultKinds.actions : hiddenKind,
-        repos: hiddenKind,
-        files: isRepositoryRelatedPage ? defaultKinds.files : hiddenKind,
-        symbols: hiddenKind,
-        lines: hiddenKind,
-    })
+}
+
+export function useFuzzyTabs(props: FuzzyTabsProps): FuzzyTabs {
+    let { fuzzyFinderActions } = getExperimentalFeatures(props.settingsCascade.final) ?? false
+    return new FuzzyTabs(
+        {
+            all: hiddenKind,
+            actions: fuzzyFinderActions ? defaultKinds.actions : hiddenKind,
+            repos: hiddenKind,
+            files: props.isRepositoryRelatedPage ? defaultKinds.files : hiddenKind,
+            symbols: hiddenKind,
+            lines: hiddenKind,
+        },
+        allFuzzyActions(props)
+    )
 }

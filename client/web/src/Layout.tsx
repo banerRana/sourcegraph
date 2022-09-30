@@ -54,7 +54,7 @@ import { parseSearchURLQuery, HomePanelsProps, SearchStreamingProps } from './se
 import { NotepadContainer } from './search/Notepad'
 import { SiteAdminAreaRoute } from './site-admin/SiteAdminArea'
 import { SiteAdminSideBarGroups } from './site-admin/SiteAdminSidebar'
-import { useThemeProps } from './theme'
+import { useTheme, useThemeProps } from './theme'
 import { UserAreaRoute } from './user/area/UserArea'
 import { UserAreaHeaderNavItem } from './user/area/UserAreaHeader'
 import { UserSettingsAreaRoute } from './user/settings/UserSettingsArea'
@@ -154,6 +154,7 @@ export const Layout: React.FunctionComponent<React.PropsWithChildren<LayoutProps
     const isSearchAutoFocusRequired = routeMatch === PageRoutes.Survey || routeMatch === EnterprisePageRoutes.Insights
 
     const themeProps = useThemeProps()
+    const themeState = useTheme()
     const [enableContrastCompliantSyntaxHighlighting] = useFeatureFlag('contrast-compliant-syntax-highlighting')
 
     const breadcrumbProps = useBreadcrumbs()
@@ -287,6 +288,7 @@ export const Layout: React.FunctionComponent<React.PropsWithChildren<LayoutProps
             )}
             {fuzzyFinder && (
                 <FuzzyFinderContainer
+                    themeState={themeState}
                     isRepositoryRelatedPage={isRepositoryRelatedPage}
                     settingsCascade={props.settingsCascade}
                     telemetryService={props.telemetryService}
