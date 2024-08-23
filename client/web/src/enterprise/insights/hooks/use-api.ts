@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
+
 import { useApolloClient } from '@apollo/client'
 
-import { CodeInsightsBackend, CodeInsightsGqlBackend } from '../core'
+import { type CodeInsightsBackend, CodeInsightsGqlBackend } from '../core'
 
 /**
  * Returns the full or limited version of the API based on
@@ -9,5 +11,5 @@ import { CodeInsightsBackend, CodeInsightsGqlBackend } from '../core'
 export function useApi(): CodeInsightsBackend {
     const apolloClient = useApolloClient()
 
-    return new CodeInsightsGqlBackend(apolloClient)
+    return useMemo(() => new CodeInsightsGqlBackend(apolloClient), [apolloClient])
 }

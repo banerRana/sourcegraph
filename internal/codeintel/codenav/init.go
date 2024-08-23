@@ -1,52 +1,38 @@
 package codenav
 
 import (
+	"github.com/sourcegraph/log"
+
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/codenav/internal/lsifstore"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/codenav/internal/store"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores"
+	codeintelshared "github.com/sourcegraph/sourcegraph/internal/codeintel/shared"
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/memo"
+	"github.com/sourcegraph/sourcegraph/internal/gitserver"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
+	searchClient "github.com/sourcegraph/sourcegraph/internal/search/client"
 )
 
-// GetService creates or returns an already-initialized symbols service.
-// If the service is not yet initialized, it will use the provided dependencies.
-func GetService(
+func NewService(
+	observationCtx *observation.Context,
 	db database.DB,
-	codeIntelDB stores.CodeIntelDB,
+	codeIntelDB codeintelshared.CodeIntelDB,
 	uploadSvc UploadService,
-	gitserver GitserverClient,
+	gitserver gitserver.Client,
 ) *Service {
-	svc, _ := initServiceMemo.Init(serviceDependencies{
-		db,
-		codeIntelDB,
-		uploadSvc,
-		gitserver,
-	})
-
-	return svc
-}
-
-type serviceDependencies struct {
-	db          database.DB
-	codeIntelDB stores.CodeIntelDB
-	uploadSvc   UploadService
-	gitserver   GitserverClient
-}
-
-var initServiceMemo = memo.NewMemoizedConstructorWithArg(func(deps serviceDependencies) (*Service, error) {
-	store := store.New(deps.db, scopedContext("store"))
-	lsifStore := lsifstore.New(deps.codeIntelDB, scopedContext("lsifstore"))
+	lsifStore := lsifstore.New(scopedContext("lsifstore", observationCtx), codeIntelDB)
+	logger := log.Scoped("codenav")
+	searcher := searchClient.New(logger, db, gitserver)
 
 	return newService(
-		store,
+		observationCtx,
+		db.Repos(),
 		lsifStore,
-		deps.uploadSvc,
-		deps.gitserver,
-		scopedContext("service"),
-	), nil
-})
+		uploadSvc,
+		gitserver,
+		searcher,
+		logger,
+	)
+}
 
-func scopedContext(component string) *observation.Context {
-	return observation.ScopedContext("codeintel", "codenav", component)
+func scopedContext(component string, parent *observation.Context) *observation.Context {
+	return observation.ScopedContext("codeintel", "codenav", component, parent)
 }

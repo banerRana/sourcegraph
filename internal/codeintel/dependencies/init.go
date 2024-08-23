@@ -1,59 +1,33 @@
 package dependencies
 
 import (
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/dependencies/internal/store"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/dependencies/internal/background"
+	dependenciesstore "github.com/sourcegraph/sourcegraph/internal/codeintel/dependencies/internal/store"
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/memo"
+	"github.com/sourcegraph/sourcegraph/internal/goroutine"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 )
 
-// GetService creates or returns an already-initialized dependencies service.
-// If the service is not yet initialized, it will use the provided dependencies.
-func GetService(
-	db database.DB,
-	gitserver GitserverClient,
-) *Service {
-	svc, _ := initServiceMemo.Init(serviceDependencies{
-		db,
-		gitserver,
-	})
-
-	return svc
+func NewService(observationCtx *observation.Context, db database.DB) *Service {
+	return newService(scopedContext("service", observationCtx), dependenciesstore.New(scopedContext("store", observationCtx), db))
 }
-
-type serviceDependencies struct {
-	db        database.DB
-	gitserver GitserverClient
-}
-
-var initServiceMemo = memo.NewMemoizedConstructorWithArg(func(deps serviceDependencies) (*Service, error) {
-	store := store.New(deps.db, scopedContext("store"))
-	externalServiceStore := deps.db.ExternalServices()
-
-	return newService(
-		store,
-		deps.gitserver,
-		externalServiceStore,
-		scopedContext("service"),
-	), nil
-})
 
 // TestService creates a new dependencies service with noop observation contexts.
-func TestService(
-	db database.DB,
-	gitserver GitserverClient,
-) *Service {
-	store := store.New(db, &observation.TestContext)
-	externalServiceStore := db.ExternalServices()
+func TestService(db database.DB) *Service {
+	store := dependenciesstore.New(&observation.TestContext, db)
 
-	return newService(
-		store,
-		gitserver,
-		externalServiceStore,
-		&observation.TestContext,
-	)
+	return newService(&observation.TestContext, store)
 }
 
-func scopedContext(component string) *observation.Context {
-	return observation.ScopedContext("codeintel", "dependencies", component)
+func scopedContext(component string, parent *observation.Context) *observation.Context {
+	return observation.ScopedContext("codeintel", "dependencies", component, parent)
+}
+
+func PackageFiltersJob(
+	obsctx *observation.Context,
+	db database.DB,
+) goroutine.CombinedRoutine {
+	return []goroutine.BackgroundRoutine{
+		background.NewPackagesFilterApplicator(obsctx, db),
+	}
 }

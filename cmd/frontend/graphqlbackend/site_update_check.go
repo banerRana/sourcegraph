@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/app/updatecheck"
 	"github.com/sourcegraph/sourcegraph/internal/auth"
+	"github.com/sourcegraph/sourcegraph/internal/gqlutil"
+	"github.com/sourcegraph/sourcegraph/internal/updatecheck"
 )
 
 func (r *siteResolver) UpdateCheck(ctx context.Context) (*updateCheckResolver, error) {
@@ -33,11 +34,11 @@ type updateCheckResolver struct {
 
 func (r *updateCheckResolver) Pending() bool { return r.pending }
 
-func (r *updateCheckResolver) CheckedAt() *DateTime {
+func (r *updateCheckResolver) CheckedAt() *gqlutil.DateTime {
 	if r.last == nil {
 		return nil
 	}
-	return &DateTime{Time: r.last.Date}
+	return &gqlutil.DateTime{Time: r.last.Date}
 }
 
 func (r *updateCheckResolver) ErrorMessage() *string {

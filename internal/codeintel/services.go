@@ -3,61 +3,59 @@ package codeintel
 import (
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/autoindexing"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/codenav"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/context"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/dependencies"
+	ossdependencies "github.com/sourcegraph/sourcegraph/internal/codeintel/dependencies"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/policies"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores/gitserver"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores/repoupdater"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/reposcheduler"
+	codeintelshared "github.com/sourcegraph/sourcegraph/internal/codeintel/shared"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads"
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/memo"
+	"github.com/sourcegraph/sourcegraph/internal/gitserver"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 )
 
 type Services struct {
-	AutoIndexingService *autoindexing.Service
-	CodenavService      *codenav.Service
-	DependenciesService *dependencies.Service
-	PoliciesService     *policies.Service
-	RankingService      *ranking.Service
-	UploadsService      *uploads.Service
+	AutoIndexingService          *autoindexing.Service
+	PreciseRepoSchedulingService reposcheduler.RepositorySchedulingService
+	CodenavService               *codenav.Service
+	DependenciesService          *ossdependencies.Service
+	PoliciesService              *policies.Service
+	RankingService               *ranking.Service
+	UploadsService               *uploads.Service
+	ContextService               *context.Service
+	GitserverClient              gitserver.Client
 }
 
-type Databases struct {
-	DB          database.DB
-	CodeIntelDB stores.CodeIntelDB
+type ServiceDependencies struct {
+	DB             database.DB
+	CodeIntelDB    codeintelshared.CodeIntelDB
+	ObservationCtx *observation.Context
 }
 
-// GetServices creates or returns an already-initialized codeintel service collection.
-// If the service collection is not yet initialized, a new one will be constructed using
-// the given database handles.
-func GetServices(dbs Databases) (Services, error) {
-	return initServicesMemo.Init(dbs)
-}
+func NewServices(deps ServiceDependencies) (Services, error) {
+	db, codeIntelDB := deps.DB, deps.CodeIntelDB
+	gitserverClient := gitserver.NewClient("codeintel")
 
-var initServicesMemo = memo.NewMemoizedConstructorWithArg(func(dbs Databases) (Services, error) {
-	db, codeIntelDB := dbs.DB, dbs.CodeIntelDB
-	gitserverClient := gitserver.New(db, scopedContext("gitserver"))
-	repoUpdaterClient := repoupdater.New(scopedContext("repo-updater"))
-
-	uploadsSvc := uploads.GetService(db, codeIntelDB, gitserverClient)
-	dependenciesSvc := dependencies.GetService(db, gitserverClient)
-	policiesSvc := policies.GetService(db, uploadsSvc, gitserverClient)
-	autoIndexingSvc := autoindexing.GetService(db, uploadsSvc, dependenciesSvc, policiesSvc, gitserverClient, repoUpdaterClient)
-	codenavSvc := codenav.GetService(db, codeIntelDB, uploadsSvc, gitserverClient)
-	rankingSvc := ranking.GetService(db, uploadsSvc, gitserverClient)
+	uploadsSvc := uploads.NewService(deps.ObservationCtx, db, codeIntelDB, gitserverClient.Scoped("uploads"))
+	dependenciesSvc := dependencies.NewService(deps.ObservationCtx, db)
+	policiesSvc := policies.NewService(deps.ObservationCtx, db, uploadsSvc, gitserverClient.Scoped("policies"))
+	autoIndexingSvc := autoindexing.NewService(deps.ObservationCtx, db, dependenciesSvc, policiesSvc, gitserverClient.Scoped("autoindexing"))
+	codenavSvc := codenav.NewService(deps.ObservationCtx, db, codeIntelDB, uploadsSvc, gitserverClient.Scoped("codenav"))
+	rankingSvc := ranking.NewService(deps.ObservationCtx, db, codeIntelDB)
+	contextService := context.NewService(deps.ObservationCtx, db)
+	reposchedulingService := reposcheduler.NewService(reposcheduler.NewPreciseStore(deps.ObservationCtx, db))
 
 	return Services{
-		AutoIndexingService: autoIndexingSvc,
-		CodenavService:      codenavSvc,
-		DependenciesService: dependenciesSvc,
-		PoliciesService:     policiesSvc,
-		RankingService:      rankingSvc,
-		UploadsService:      uploadsSvc,
+		AutoIndexingService:          autoIndexingSvc,
+		PreciseRepoSchedulingService: reposchedulingService,
+		CodenavService:               codenavSvc,
+		DependenciesService:          dependenciesSvc,
+		PoliciesService:              policiesSvc,
+		RankingService:               rankingSvc,
+		UploadsService:               uploadsSvc,
+		ContextService:               contextService,
+		GitserverClient:              gitserverClient,
 	}, nil
-})
-
-func scopedContext(component string) *observation.Context {
-	return observation.ScopedContext("codeintel", "worker", component)
 }

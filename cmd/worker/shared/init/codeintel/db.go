@@ -3,9 +3,7 @@ package codeintel
 import (
 	"database/sql"
 
-	"github.com/sourcegraph/log"
-
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores"
+	codeintelshared "github.com/sourcegraph/sourcegraph/internal/codeintel/shared"
 	"github.com/sourcegraph/sourcegraph/internal/conf"
 	"github.com/sourcegraph/sourcegraph/internal/conf/conftypes"
 	connections "github.com/sourcegraph/sourcegraph/internal/database/connections/live"
@@ -14,25 +12,21 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-// InitDB initializes and returns a connection to the codeintel db.
-func InitDB() (*sql.DB, error) {
-	return initDBMemo.Init()
-}
-
-func InitDBWithLogger(logger log.Logger) (stores.CodeIntelDB, error) {
-	rawDB, err := InitDB()
+func InitDB(observationCtx *observation.Context) (codeintelshared.CodeIntelDB, error) {
+	rawDB, err := initDBMemo.Init(observationCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	return stores.NewCodeIntelDB(rawDB), nil
+	return codeintelshared.NewCodeIntelDB(observationCtx.Logger, rawDB), nil
 }
 
-var initDBMemo = memo.NewMemoizedConstructor(func() (*sql.DB, error) {
+var initDBMemo = memo.NewMemoizedConstructorWithArg(func(observationCtx *observation.Context) (*sql.DB, error) {
 	dsn := conf.GetServiceConnectionValueAndRestartOnChange(func(serviceConnections conftypes.ServiceConnections) string {
 		return serviceConnections.CodeIntelPostgresDSN
 	})
-	db, err := connections.EnsureNewCodeIntelDB(dsn, "worker", &observation.TestContext)
+
+	db, err := connections.EnsureNewCodeIntelDB(observationCtx, dsn, "worker")
 	if err != nil {
 		return nil, errors.Errorf("failed to connect to codeintel database: %s", err)
 	}

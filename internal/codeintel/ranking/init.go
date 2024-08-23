@@ -1,45 +1,83 @@
 package ranking
 
 import (
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/background"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/background/coordinator"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/background/exporter"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/background/janitor"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/background/mapper"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/background/reducer"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/lsifstore"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/ranking/internal/store"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads"
+	codeintelshared "github.com/sourcegraph/sourcegraph/internal/codeintel/shared"
+	"github.com/sourcegraph/sourcegraph/internal/conf"
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/memo"
+	"github.com/sourcegraph/sourcegraph/internal/goroutine"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 )
 
-// GetService creates or returns an already-initialized ranking service.
-// If the service is not yet initialized, it will use the provided dependencies.
-func GetService(
+func NewService(
+	observationCtx *observation.Context,
 	db database.DB,
-	uploadSvc *uploads.Service,
-	gitserverClient GitserverClient,
+	codeIntelDB codeintelshared.CodeIntelDB,
 ) *Service {
-	svc, _ := initServiceMemo.Init(serviceDependencies{
-		db,
-		uploadSvc,
-		gitserverClient,
-	})
-
-	return svc
-}
-
-type serviceDependencies struct {
-	db              database.DB
-	uploadsService  *uploads.Service
-	gitserverClient GitserverClient
-}
-
-var initServiceMemo = memo.NewMemoizedConstructorWithArg(func(deps serviceDependencies) (*Service, error) {
 	return newService(
-		store.New(deps.db, scopedContext("store")),
-		deps.uploadsService,
-		deps.gitserverClient,
-		siteConfigQuerier{},
-		scopedContext("service"),
-	), nil
-})
+		scopedContext("service", observationCtx),
+		store.New(scopedContext("store", observationCtx), db),
+		lsifstore.New(scopedContext("lsifstore", observationCtx), codeIntelDB),
+		conf.DefaultClient(),
+	)
+}
 
-func scopedContext(component string) *observation.Context {
-	return observation.ScopedContext("codeintel", "ranking", component)
+var (
+	ExporterConfigInst    = &exporter.Config{}
+	CoordinatorConfigInst = &coordinator.Config{}
+	MapperConfigInst      = &mapper.Config{}
+	ReducerConfigInst     = &reducer.Config{}
+	JanitorConfigInst     = &janitor.Config{}
+)
+
+func NewSymbolExporter(observationCtx *observation.Context, rankingService *Service) goroutine.BackgroundRoutine {
+	return background.NewSymbolExporter(
+		scopedContext("exporter", observationCtx),
+		rankingService.store,
+		rankingService.lsifstore,
+		ExporterConfigInst,
+	)
+}
+
+func NewCoordinator(observationCtx *observation.Context, rankingService *Service) goroutine.BackgroundRoutine {
+	return background.NewCoordinator(
+		scopedContext("coordinator", observationCtx),
+		rankingService.store,
+		CoordinatorConfigInst,
+	)
+}
+
+func NewMapper(observationCtx *observation.Context, rankingService *Service) []goroutine.BackgroundRoutine {
+	return background.NewMapper(
+		scopedContext("mapper", observationCtx),
+		rankingService.store,
+		MapperConfigInst,
+	)
+}
+
+func NewReducer(observationCtx *observation.Context, rankingService *Service) goroutine.BackgroundRoutine {
+	return background.NewReducer(
+		scopedContext("reducer", observationCtx),
+		rankingService.store,
+		ReducerConfigInst,
+	)
+}
+
+func NewSymbolJanitor(observationCtx *observation.Context, rankingService *Service) []goroutine.BackgroundRoutine {
+	return background.NewSymbolJanitor(
+		scopedContext("janitor", observationCtx),
+		rankingService.store,
+		JanitorConfigInst,
+	)
+}
+
+func scopedContext(component string, observationCtx *observation.Context) *observation.Context {
+	return observation.ScopedContext("codeintel", "ranking", component, observationCtx)
 }

@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/sourcegraph/sourcegraph/internal/conf"
 	"github.com/sourcegraph/sourcegraph/internal/errcode"
+	"github.com/sourcegraph/sourcegraph/internal/lazyregexp"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
+
+var userRegex = lazyregexp.New("^[a-zA-Z0-9]+$")
 
 // ValidateRemoteAddr validates if the input is a valid IP or a valid hostname.
 // It validates the hostname by attempting to resolve it.
@@ -22,11 +26,28 @@ func ValidateRemoteAddr(raddr string) bool {
 	if err == nil {
 		raddr = host
 		_, err := strconv.Atoi(port)
-
 		// return false if port is not an int
 		if err != nil {
 			return false
 		}
+	}
+
+	// Check if the string contains a username (e.g. git@example.com); if so validate username
+	fragments := strings.Split(raddr, "@")
+	// raddr contains more than one `@`
+	if len(fragments) > 2 {
+		return false
+	}
+	// raddr contains exactly one `@`
+	if len(fragments) == 2 {
+		user := fragments[0]
+
+		if match := userRegex.MatchString(user); !match {
+			return false
+		}
+
+		// Set raddr to host minus the user
+		raddr = fragments[1]
 	}
 
 	validIP := net.ParseIP(raddr) != nil
@@ -48,7 +69,6 @@ const maxPasswordRunes = 256
 
 // ValidatePassword: Validates that a password meets the required criteria
 func ValidatePassword(passwd string) error {
-
 	if conf.PasswordPolicyEnabled() {
 		return validatePasswordUsingPolicy(passwd)
 	}
@@ -96,7 +116,7 @@ func validatePasswordUsingPolicy(passwd string) error {
 		case unicode.IsLetter(c) || c == ' ':
 			chars++
 		default:
-			//ignore
+			// ignore
 		}
 	}
 	// Check for blank password

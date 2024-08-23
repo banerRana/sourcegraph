@@ -1,68 +1,133 @@
 package uploads
 
 import (
-	"github.com/sourcegraph/sourcegraph/cmd/frontend/backend"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/autoindexing"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/dependencies"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/policies"
-	policiesEnterprise "github.com/sourcegraph/sourcegraph/internal/codeintel/policies/enterprise"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/stores/repoupdater"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/lsifstore"
-	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/store"
+	"time"
+
+	lsifstore "github.com/sourcegraph/sourcegraph/internal/codeintel/codegraph"
+	codeintelshared "github.com/sourcegraph/sourcegraph/internal/codeintel/shared"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/background"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/background/backfiller"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/background/commitgraph"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/background/expirer"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/background/janitor"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/background/processor"
+	uploadsstore "github.com/sourcegraph/sourcegraph/internal/codeintel/uploads/internal/store"
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/database/locker"
 	"github.com/sourcegraph/sourcegraph/internal/gitserver"
-	"github.com/sourcegraph/sourcegraph/internal/memo"
+	"github.com/sourcegraph/sourcegraph/internal/goroutine"
+	"github.com/sourcegraph/sourcegraph/internal/object"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 )
 
-// GetService creates or returns an already-initialized uploads service.
-// If the service is not yet initialized, it will use the provided dependencies.
-func GetService(
+func NewService(
+	observationCtx *observation.Context,
 	db database.DB,
-	codeIntelDB stores.CodeIntelDB,
-	gsc GitserverClient,
+	codeIntelDB codeintelshared.CodeIntelDB,
+	gitserverClient gitserver.Client,
 ) *Service {
-	svc, _ := initServiceMemo.Init(serviceDependencies{
-		db,
-		codeIntelDB,
-		gsc,
-	})
+	store := uploadsstore.New(scopedContext("uploadsstore", observationCtx), db)
+	lsifStore := lsifstore.New(scopedContext("lsifstore", observationCtx), codeIntelDB)
+
+	svc := newService(
+		scopedContext("service", observationCtx),
+		store,
+		db.Repos(),
+		lsifStore,
+		gitserverClient,
+	)
 
 	return svc
 }
 
-type serviceDependencies struct {
-	db          database.DB
-	codeIntelDB stores.CodeIntelDB
-	gsc         GitserverClient
+var (
+	BackfillerConfigInst  = &backfiller.Config{}
+	CommitGraphConfigInst = &commitgraph.Config{}
+	ExpirerConfigInst     = &expirer.Config{}
+	JanitorConfigInst     = &janitor.Config{}
+	ProcessorConfigInst   = &processor.Config{}
+)
+
+func NewUploadProcessorJob(
+	observationCtx *observation.Context,
+	uploadSvc *Service,
+	db database.DB,
+	uploadStore object.Storage,
+	workerConcurrency int,
+	workerBudget int64,
+	workerPollInterval time.Duration,
+	maximumRuntimePerJob time.Duration,
+) []goroutine.BackgroundRoutine {
+	ProcessorConfigInst.WorkerConcurrency = workerConcurrency
+	ProcessorConfigInst.WorkerBudget = workerBudget
+	ProcessorConfigInst.WorkerPollInterval = workerPollInterval
+	ProcessorConfigInst.MaximumRuntimePerJob = maximumRuntimePerJob
+
+	return background.NewUploadProcessorJob(
+		scopedContext("processor", observationCtx),
+		uploadSvc.store,
+		uploadSvc.codeGraphDataStore,
+		uploadSvc.repoStore,
+		uploadSvc.gitserverClient,
+		db,
+		uploadStore,
+		ProcessorConfigInst,
+	)
 }
 
-var initServiceMemo = memo.NewMemoizedConstructorWithArg(func(deps serviceDependencies) (*Service, error) {
-	store := store.New(deps.db, scopedContext("store"))
-	repoStore := backend.NewRepos(scopedContext("repos").Logger, deps.db, gitserver.NewClient(deps.db))
-	lsifStore := lsifstore.New(deps.codeIntelDB, scopedContext("lsifstore"))
-	policyMatcher := policiesEnterprise.NewMatcher(deps.gsc, policiesEnterprise.RetentionExtractor, true, false)
-	locker := locker.NewWith(deps.db, "codeintel")
-	repoUpdater := repoupdater.New(&observation.TestContext)
-
-	svc := newService(
-		store,
-		repoStore,
-		lsifStore,
-		deps.gsc,
-		nil, // written in circular fashion
-		nil, // written in circular fashion
-		policyMatcher,
-		locker,
-		scopedContext("service"),
+func NewCommittedAtBackfillerJob(
+	uploadSvc *Service,
+	gitserverClient gitserver.Client,
+) []goroutine.BackgroundRoutine {
+	return background.NewCommittedAtBackfillerJob(
+		// TODO - context
+		uploadSvc.store,
+		gitserverClient,
+		BackfillerConfigInst,
 	)
-	svc.policySvc = policies.GetService(deps.db, svc, deps.gsc)
-	svc.autoIndexingSvc = autoindexing.GetService(deps.db, svc, dependencies.GetService(deps.db, deps.gsc), svc.policySvc, deps.gsc, repoUpdater)
-	return svc, nil
-})
+}
 
-func scopedContext(component string) *observation.Context {
-	return observation.ScopedContext("codeintel", "uploads", component)
+func NewJanitor(
+	observationCtx *observation.Context,
+	uploadSvc *Service,
+	gitserverClient gitserver.Client,
+) []goroutine.BackgroundRoutine {
+	return background.NewJanitor(
+		scopedContext("janitor", observationCtx),
+		uploadSvc.store,
+		uploadSvc.codeGraphDataStore,
+		gitserverClient,
+		JanitorConfigInst,
+	)
+}
+
+func NewCommitGraphUpdater(
+	uploadSvc *Service,
+	gitserverClient gitserver.Client,
+) []goroutine.BackgroundRoutine {
+	return background.NewCommitGraphUpdater(
+		// TODO - context
+		uploadSvc.store,
+		gitserverClient,
+		CommitGraphConfigInst,
+	)
+}
+
+func NewExpirationTasks(
+	observationCtx *observation.Context,
+	uploadSvc *Service,
+	policySvc expirer.PolicyService,
+	repoStore database.RepoStore,
+) []goroutine.BackgroundRoutine {
+	return background.NewExpirationTasks(
+		scopedContext("expiration", observationCtx),
+		uploadSvc.store,
+		policySvc,
+		uploadSvc.gitserverClient,
+		repoStore,
+		ExpirerConfigInst,
+	)
+}
+
+func scopedContext(component string, parent *observation.Context) *observation.Context {
+	return observation.ScopedContext("codeintel", "uploads", component, parent)
 }
